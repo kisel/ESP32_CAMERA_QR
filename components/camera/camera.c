@@ -270,13 +270,17 @@ esp_err_t camera_init(const camera_config_t* config) {
 		}
 		int qp = config->jpeg_quality;
 		int compression_ratio_bound;
-		if (qp >= 30) {
-			compression_ratio_bound = 5;
-		} else if (qp >= 10) {
-			compression_ratio_bound = 10;
-		} else {
-			compression_ratio_bound = 20;
-		}
+        if (qp >= 20) {
+            compression_ratio_bound = 30;
+        } else if (qp >= 10) {
+            compression_ratio_bound = 20;
+        } else if (qp >= 6){
+            compression_ratio_bound = 10;
+        } else {
+            compression_ratio_bound = 5;
+        }
+
+		
 		(*s_state->sensor.set_quality)(&s_state->sensor, qp);
 		size_t equiv_line_count = s_state->height / compression_ratio_bound;
 		s_state->fb_size = s_state->width * equiv_line_count * 2 /* bpp */;
@@ -302,8 +306,21 @@ esp_err_t camera_init(const camera_config_t* config) {
 
 	ESP_LOGD(TAG, "Allocating frame buffer (%d bytes)", s_state->fb_size);
 	s_state->fb = (uint8_t*) calloc(s_state->fb_size, 1);
+	if (pix_format == PIXFORMAT_JPEG && s_state->fb == NULL){// 
+		size_t adj_fbsize;
+		for(int i = 11;i<20;i++){
+			adj_fbsize = (s_state->fb_size*10)/i;
+			s_state->fb = (uint8_t*) calloc(adj_fbsize, 1);
+			if(s_state->fb != NULL){
+				s_state->fb_size = adj_fbsize;
+				break;
+			}
+		}
+	}
+	ESP_LOGI(TAG, "Allocating buff size: %d", s_state->fb_size);
 	if (s_state->fb == NULL) {
 		ESP_LOGE(TAG, "Failed to allocate frame buffer");
+		ESP_LOGE(TAG, "Free heap size: %d",xPortGetFreeHeapSize());
 		err = ESP_ERR_NO_MEM;
 		goto fail;
 	}
@@ -707,6 +724,9 @@ static void IRAM_ATTR dma_filter_task(void *pvParameters) {
 		ESP_LOGV(TAG, "dma_flt: pos=%d ", get_fb_pos());
 		(*s_state->dma_filter)(buf, desc, pfb);
 		s_state->dma_filtered_count++;
+		if(s_state->dma_received_count%10==0){
+			ESP_LOGV(TAG,"dma_flt: dma_received_count=%d, dma_filtered_count=%d",s_state->dma_received_count,s_state->dma_filtered_count);
+		}
 		ESP_LOGV(TAG, "dma_flt: flt_count=%d ", s_state->dma_filtered_count);
 	}
 }
@@ -754,12 +774,16 @@ static void IRAM_ATTR dma_filter_jpeg(const dma_elem_t* src, lldesc_t* dma_desc,
 	size_t end = dma_desc->length / sizeof(dma_elem_t) / 4;
 	// manually unrolling 4 iterations of the loop here
 	for (size_t i = 0; i < end; ++i) {
-		dst[0] = src[0].sample1;
+/*		dst[0] = src[0].sample1;
 		dst[1] = src[1].sample1;
 		dst[2] = src[2].sample1;
 		dst[3] = src[3].sample1;
 		src += 4;
-		dst += 4;
+		dst += 4;*/
+		*dst++=(*src++).sample1;
+		*dst++=(*src++).sample1;
+		*dst++=(*src++).sample1;
+		*dst++=(*src++).sample1;
 	}
 	// the final sample of a line in SM_0A0B_0B0C sampling mode needs special handling
 	if ((dma_desc->length & 0x7) != 0) {

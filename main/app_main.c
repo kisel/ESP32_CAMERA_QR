@@ -55,7 +55,7 @@ static ip4_addr_t s_ip_addr;
 static camera_pixelformat_t s_pixel_format;
 
 #define CAMERA_PIXEL_FORMAT CAMERA_PF_JPEG
-#define CAMERA_FRAME_SIZE CAMERA_FS_QQVGA
+#define CAMERA_FRAME_SIZE CAMERA_FS_UXGA
 
 
 void app_main()
@@ -107,7 +107,7 @@ void app_main()
         s_pixel_format = CAMERA_PIXEL_FORMAT;
         camera_config.frame_size = CAMERA_FRAME_SIZE;
         if (s_pixel_format == CAMERA_PF_JPEG)
-        camera_config.jpeg_quality = 15;
+        camera_config.jpeg_quality = 3;
     } else {
         ESP_LOGE(TAG, "Camera not supported");
         return;
